@@ -5,6 +5,7 @@ import mmcv
 import numpy as np
 import pycocotools.mask as maskUtils
 import torch.nn as nn
+from torch import Tensor
 
 from mmdet.core import auto_fp16, get_classes, tensor2imgs
 
@@ -124,8 +125,8 @@ class BaseDetector(nn.Module):
         else:
             bbox_result, segm_result = result, None
 
-        img_tensor = data['img'][0]
-        img_metas = data['img_meta'][0].data[0]
+        img_tensor = data['img'].data[0]
+        img_metas = data['img_meta'].data[0]
         imgs = tensor2imgs(img_tensor, **img_metas[0]['img_norm_cfg'])
         assert len(imgs) == len(img_metas)
 
