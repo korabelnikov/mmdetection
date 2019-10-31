@@ -1,3 +1,5 @@
+import copy
+
 import argparse
 import os
 import os.path as osp
@@ -21,9 +23,14 @@ def single_gpu_test(model, data_loader, show=False):
     results = []
     dataset = data_loader.dataset
     prog_bar = mmcv.ProgressBar(len(dataset))
+
     for i, data in enumerate(data_loader):
+        inference_data = copy.deepcopy(data)
+        del inference_data['gt_bboxes']
+        del inference_data['gt_labels']
+
         with torch.no_grad():
-            result = model(return_loss=False, rescale=not show, **data)
+            result = model(return_loss=False, rescale=not show, **inference_data)
         results.append(result)
 
         if show:
@@ -151,7 +158,7 @@ def main():
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
     cfg.model.pretrained = None
-    cfg.data.test.test_mode = True
+    #cfg.data.test.test_mode = True disable it cause I need validation annotations
 
     # init distributed env first, since logger depends on the dist info.
     if args.launcher == 'none':

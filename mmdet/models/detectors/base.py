@@ -1,10 +1,12 @@
 import logging
+import os
 from abc import ABCMeta, abstractmethod
 
 import mmcv
 import numpy as np
 import pycocotools.mask as maskUtils
 import torch.nn as nn
+from mmcv import color_val
 from torch import Tensor
 
 from mmdet.core import auto_fp16, get_classes, tensor2imgs
@@ -127,14 +129,21 @@ class BaseDetector(nn.Module):
 
         data_img = data['img']
         data_img_meta = data['img_meta']
+        data_gt_bboxes = data['gt_bboxes']
+        data_gt_labels = data['gt_labels']
 
         try:  # process DataContainer-like objects
             data_img = data_img.data
             data_img_meta = data_img_meta.data
+            data_gt_bboxes = data_gt_bboxes.data
+            data_gt_labels = data_gt_labels.data
         except AttributeError:
             pass
         img_tensor = data_img[0]
         img_metas = data_img_meta[0]
+
+        gt_bboxes = data_gt_bboxes[0]
+        gt_labels = data_gt_labels[0]
 
         try:  # process DataContainer-like objects
             img_metas = img_metas.data
@@ -160,11 +169,11 @@ class BaseDetector(nn.Module):
                 'dataset must be a valid dataset name or a sequence'
                 ' of class names, not {}'.format(type(dataset)))
 
+        bboxes = np.vstack(bbox_result)
         for img, img_meta in zip(imgs, img_metas):
             h, w, _ = img_meta['img_shape']
             img_show = img[:h, :w, :]
 
-            bboxes = np.vstack(bbox_result)
             # draw segmentation masks
             if segm_result is not None:
                 segms = mmcv.concat_list(segm_result)
@@ -180,9 +189,100 @@ class BaseDetector(nn.Module):
                 for i, bbox in enumerate(bbox_result)
             ]
             labels = np.concatenate(labels)
-            mmcv.imshow_det_bboxes(
+            gt_bboxes = np.concatenate(gt_bboxes)
+            gt_labels = np.concatenate(gt_labels)
+
+            imshow_det_bboxes_with_gt(
                 img_show,
                 bboxes,
                 labels,
+                gt_bboxes=gt_bboxes,
+                gt_labels=gt_labels,
                 class_names=class_names,
-                score_thr=score_thr)
+                score_thr=score_thr,
+                out_file='detections/' + os.path.basename(img_meta['filename']))
+
+#TODO DEBUG
+import cv2
+
+
+def imshow_det_bboxes_with_gt(img,
+                      bboxes,
+                      labels,
+                      gt_bboxes=None,
+                      gt_labels=None,
+                      class_names=None,
+                      score_thr=0,
+                      bbox_color='red',
+                      text_color='red',
+                      gt_bbox_color='green',
+                      gt_text_color='green',
+                      thickness=1,
+                      font_scale=0.5,
+                      show=True,
+                      win_name='',
+                      wait_time=0,
+                      out_file=None):
+    """Draw bboxes and class labels (with scores) on an image.
+
+    Args:
+        img (str or ndarray): The image to be displayed.
+        bboxes (ndarray): Bounding boxes (with scores), shaped (n, 4) or
+            (n, 5).
+        labels (ndarray): Labels of bboxes.
+        class_names (list[str]): Names of each classes.
+        score_thr (float): Minimum score of bboxes to be shown.
+        bbox_color (str or tuple or :obj:`Color`): Color of bbox lines.
+        text_color (str or tuple or :obj:`Color`): Color of texts.
+        thickness (int): Thickness of lines.
+        font_scale (float): Font scales of texts.
+        show (bool): Whether to show the image.
+        win_name (str): The window name.
+        wait_time (int): Value of waitKey param.
+        out_file (str or None): The filename to write the image.
+    """
+    assert bboxes.ndim == 2
+    assert labels.ndim == 1
+    assert bboxes.shape[0] == labels.shape[0]
+    assert bboxes.shape[1] == 4 or bboxes.shape[1] == 5
+    img = mmcv.imread(img)
+
+    if gt_bboxes is not None and gt_labels is not None:
+        gt_bbox_color = color_val(gt_bbox_color)
+        gt_text_color = color_val(gt_text_color)
+    else:
+        gt_bbox_color = gt_text_color = color_val('green')
+    draw_detections(img, gt_bbox_color, gt_bboxes, gt_labels, gt_text_color, class_names, thickness, font_scale)
+
+    if score_thr > 0:
+        assert bboxes.shape[1] == 5
+        scores = bboxes[:, -1]
+        inds = scores > score_thr
+        bboxes = bboxes[inds, :]
+        labels = labels[inds]
+
+    bbox_color = color_val(bbox_color)
+    text_color = color_val(text_color)
+
+    draw_detections(img, bbox_color, bboxes, labels, text_color, class_names, thickness, font_scale)
+
+    if show:
+        mmcv.imshow(img, win_name, wait_time)
+    if out_file is not None:
+        mmcv.imwrite(img, out_file)
+
+
+def draw_detections(img, bbox_color, bboxes, labels, text_color, class_names, thickness, font_scale):
+    for bbox, label in zip(bboxes, labels):
+        bbox_int = bbox.astype(np.int32)
+        left_top = (bbox_int[0], bbox_int[1])
+        right_bottom = (bbox_int[2], bbox_int[3])
+        cv2.rectangle(
+            img, left_top, right_bottom, bbox_color, thickness=thickness)
+        label_text = '' # todo DEBUG
+        #label_text = class_names[
+        #    label] if class_names is not None else 'cls {}'.format(label)
+        if len(bbox) > 4:
+            label_text += '|{:.02f}'.format(bbox[-1])
+        cv2.putText(img, label_text, (bbox_int[0], bbox_int[1] - 2),
+                    cv2.FONT_HERSHEY_COMPLEX, font_scale, text_color)
