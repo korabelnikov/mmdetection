@@ -217,6 +217,36 @@ def get_cls_results(det_results, gt_bboxes, gt_labels, gt_ignore, class_id):
     return cls_dets, cls_gts, cls_gt_ignore
 
 
+"""
+TODO move this function it's own file
+"""
+def calc_recalls(recalls, precisions, precision_thr):
+    from scipy.interpolate import interp1d
+    import matplotlib.pyplot as plt
+
+
+    ret = []  # recalls
+    # loop over size groups
+    for i, (recalls_i, precisions_i) in enumerate(zip(recalls, precisions)):
+        #recalls_i = np.append(recalls_i, 1)
+        #precisions_i = np.append(precisions_i, 0)
+
+        plt.plot(recalls_i, precisions_i)
+        plt.title("Size group #{}".format(i))
+        plt.ylabel('precision')
+        plt.xlabel('recall')
+        plt.show()
+
+        f = interp1d(precisions_i, recalls_i, fill_value='extrapolate')
+        ret.append([])
+        for thr in precision_thr:
+            ret[-1].append(f(thr))
+
+    # transpose
+    ret = list(map(list, zip(*ret)))
+    return ret
+
+
 def eval_map(det_results,
              gt_bboxes,
              gt_labels,
@@ -300,12 +330,19 @@ def eval_map(det_results,
             num_gts = num_gts.item()
         mode = 'area' if dataset != 'voc07' else '11points'
         ap = average_precision(recalls, precisions, mode)
+
+        precision_thr = [0.5, 0.7, 0.9]
+        recalls_at_prec = list(calc_recalls(recalls, precisions, precision_thr))
+
+        labels = ["Recall@{}Pr".format(i) for i in precision_thr]
+        recalls_at_prec = dict(zip(labels, recalls_at_prec))
+        print(recalls_at_prec)
         eval_results.append({
             'num_gts': num_gts,
             'num_dets': num_dets,
             'recall': recalls,
             'precision': precisions,
-            'ap': ap
+            'ap': ap,
         })
     if scale_ranges is not None:
         # shape (num_classes, num_scales)
