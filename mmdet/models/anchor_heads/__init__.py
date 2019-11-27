@@ -8,6 +8,8 @@ from .reppoints_head import RepPointsHead
 from .retina_head import RetinaHead
 from .rpn_head import RPNHead
 from .ssd_head import SSDHead
+from .squeeze_det import SqueezeDet
+from .ssd_head2 import SSDHead2
 
 __all__ = [
     'AnchorHead', 'GuidedAnchorHead', 'FeatureAdaption', 'RPNHead',
