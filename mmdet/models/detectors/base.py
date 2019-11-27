@@ -250,9 +250,12 @@ def imshow_det_bboxes_with_gt(img,
     if gt_bboxes is not None and gt_labels is not None:
         gt_bbox_color = color_val(gt_bbox_color)
         gt_text_color = color_val(gt_text_color)
-    else:
-        gt_bbox_color = gt_text_color = color_val('green')
-    draw_detections(img, gt_bbox_color, gt_bboxes, gt_labels, gt_text_color, class_names, thickness, font_scale)
+        if gt_bbox_color is not None and gt_text_color is not None:
+            gt_bbox_color = color_val(gt_bbox_color)
+            gt_text_color = color_val(gt_text_color)
+        else:
+            gt_bbox_color = gt_text_color = color_val('green')
+        draw_detections(img, gt_bbox_color, gt_bboxes, gt_labels, gt_text_color, class_names, thickness, font_scale)
 
     if score_thr > 0:
         assert bboxes.shape[1] == 5
