@@ -81,7 +81,8 @@ class SSDHead(AnchorHead):
             for r in anchor_ratios[k]:
                 ratios += [1 / r, r]  # 4 or 6 ratio
             anchor_generator = AnchorGenerator(
-                base_size, scales, ratios, scale_major=False, ctr=ctr)
+                (base_size, base_size), scales, ratios, scale_major=False,
+                ctr=ctr)
             indices = list(range(len(ratios)))
             indices.insert(1, len(indices))
             anchor_generator.base_anchors = torch.index_select(

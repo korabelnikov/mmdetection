@@ -24,17 +24,26 @@ def single_gpu_test(model, data_loader, show=False):
     dataset = data_loader.dataset
     prog_bar = mmcv.ProgressBar(len(dataset))
 
+    if show:
+        try:
+            score_thr = model.module.test_cfg['score_thr']
+        except KeyError:
+            print(" no test_cfg['score_thr'] so threshold 0.5 being used")
+            score_thr = 0.5
+
     for i, data in enumerate(data_loader):
         inference_data = copy.deepcopy(data)
         del inference_data['gt_bboxes']
         del inference_data['gt_labels']
 
         with torch.no_grad():
-            result = model(return_loss=False, rescale=not show, **inference_data)
+            result = model(return_loss=False, rescale=False, **inference_data)
         results.append(result)
 
         if show:
-            model.module.show_result(data, result)
+            #it's BaseDetector.show_result
+            model.module.show_result(data, result, score_thr=score_thr)
+
 
         try:  # process 2 possible format of input
             batch_size = data['img'].data[0].size(0)

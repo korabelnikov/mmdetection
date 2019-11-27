@@ -75,7 +75,8 @@ class AnchorHead(nn.Module):
         self.anchor_generators = []
         for anchor_base in self.anchor_base_sizes:
             self.anchor_generators.append(
-                AnchorGenerator(anchor_base, anchor_scales, anchor_ratios))
+                AnchorGenerator(
+                    (anchor_base, anchor_base), anchor_scales, anchor_ratios))
 
         self.num_anchors = len(self.anchor_ratios) * len(self.anchor_scales)
         self._init_layers()

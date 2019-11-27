@@ -53,7 +53,7 @@ class RTSD(XMLDataset):
             try:
                 tree = ET.parse(xml_path)
             except FileNotFoundError:
-                print('no annotation ', xml_path)
+                #print('no annotation ', xml_path)
                 fails += 1
                 continue
             root = tree.getroot()
