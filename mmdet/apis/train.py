@@ -209,7 +209,10 @@ def _non_dist_train(model, dataset, cfg, validate=False):
             dist=False) for ds in dataset
     ]
     # put model on gpus
-    model = MMDataParallel(model, device_ids=range(cfg.gpus)).cuda()
+    model = MMDataParallel(model, device_ids=range(cfg.gpus))
+    CUDA = True
+    if CUDA:
+        model = model.cuda()
 
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
