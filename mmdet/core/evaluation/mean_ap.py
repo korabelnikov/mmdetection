@@ -236,7 +236,7 @@ def eval_map(det_results,
         scale_ranges (list, optional): [(min1, max1), (min2, max2), ...]
         iou_thr (float): IoU threshold
         dataset (None or str or list): dataset name or dataset classes, there
-            are minor differences in metrics for different datsets, e.g.
+            are minor differences in metrics for different datasets, e.g.
             "voc07", "imagenet_det", etc.
         print_summary (bool): whether to print the mAP summary
 
