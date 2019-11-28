@@ -233,8 +233,8 @@ def calc_recalls(recalls, precisions, precision_thr):
 
         plt.plot(recalls_i, precisions_i)
         plt.title("Size group #{}".format(i))
-        plt.ylabel('precision')
-        plt.xlabel('recall')
+        plt.xlabel('precision')
+        plt.ylabel('recall')
         plt.show()
 
         f = interp1d(precisions_i, recalls_i, fill_value='extrapolate')
