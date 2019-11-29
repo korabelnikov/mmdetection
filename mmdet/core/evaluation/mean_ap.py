@@ -161,8 +161,8 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
         if area_ranges == [(None, None)]:
             fp[...] = 1
         else:
-            det_areas = (det_bboxes[:, 2] - det_bboxes[:, 0] + 1) * (
-                det_bboxes[:, 3] - det_bboxes[:, 1] + 1)
+            det_areas = (det_bboxes[:, 2] - det_bboxes[:, 0]) * (
+                det_bboxes[:, 3] - det_bboxes[:, 1])
             for i, (min_area, max_area) in enumerate(area_ranges):
                 fp[i, (det_areas >= min_area) & (det_areas < max_area)] = 1
         return tp, fp
@@ -176,8 +176,8 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
         if min_area is None:
             gt_area_ignore = np.zeros_like(gt_ignore, dtype=bool)
         else:
-            gt_areas = (gt_bboxes[:, 2] - gt_bboxes[:, 0] + 1) * (
-                gt_bboxes[:, 3] - gt_bboxes[:, 1] + 1)
+            gt_areas = (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * (
+                gt_bboxes[:, 3] - gt_bboxes[:, 1])
             gt_area_ignore = (gt_areas < min_area) | (gt_areas >= max_area)
         for i in sort_inds:
             if ious_max[i] >= iou_thr:
@@ -193,7 +193,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
                 fp[k, i] = 1
             else:
                 bbox = det_bboxes[i, :4]
-                area = (bbox[2] - bbox[0] + 1) * (bbox[3] - bbox[1] + 1)
+                area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
                 if area >= min_area and area < max_area:
                     fp[k, i] = 1
     return tp, fp
@@ -236,7 +236,7 @@ def eval_map(det_results,
         scale_ranges (list, optional): [(min1, max1), (min2, max2), ...]
         iou_thr (float): IoU threshold
         dataset (None or str or list): dataset name or dataset classes, there
-            are minor differences in metrics for different datsets, e.g.
+            are minor differences in metrics for different datasets, e.g.
             "voc07", "imagenet_det", etc.
         print_summary (bool): whether to print the mAP summary
 
@@ -300,12 +300,13 @@ def eval_map(det_results,
             num_gts = num_gts.item()
         mode = 'area' if dataset != 'voc07' else '11points'
         ap = average_precision(recalls, precisions, mode)
+
         eval_results.append({
             'num_gts': num_gts,
             'num_dets': num_dets,
             'recall': recalls,
             'precision': precisions,
-            'ap': ap
+            'ap': ap,
         })
     if scale_ranges is not None:
         # shape (num_classes, num_scales)
@@ -325,21 +326,25 @@ def eval_map(det_results,
                 aps.append(cls_result['ap'])
         mean_ap = np.array(aps).mean().item() if aps else 0.0
     if print_summary:
-        print_map_summary(mean_ap, eval_results, dataset)
+        print_map_summary(mean_ap, eval_results, dataset, area_ranges)
 
     return mean_ap, eval_results
 
 
-def print_map_summary(mean_ap, results, dataset=None):
+def print_map_summary(mean_ap, results, dataset=None, ranges=None):
     """Print mAP and results of each class.
 
     Args:
         mean_ap(float): calculated from `eval_map`
         results(list): calculated from `eval_map`
         dataset(None or str or list): dataset name or dataset classes.
+        ranges(list or Tuple): ranges of areas
     """
     num_scales = len(results[0]['ap']) if isinstance(results[0]['ap'],
                                                      np.ndarray) else 1
+    if ranges is not None:
+        assert len(ranges) == num_scales
+
     num_classes = len(results)
 
     recalls = np.zeros((num_scales, num_classes), dtype=np.float32)
@@ -365,6 +370,8 @@ def print_map_summary(mean_ap, results, dataset=None):
         mean_ap = [mean_ap]
     header = ['class', 'gts', 'dets', 'recall', 'precision', 'ap']
     for i in range(num_scales):
+        if ranges is not None:
+            print("Area range ", ranges[i])
         table_data = [header]
         for j in range(num_classes):
             row_data = [
