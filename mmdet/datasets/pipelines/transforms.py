@@ -5,6 +5,7 @@ import mmcv
 import numpy as np
 from albumentations import Compose
 from imagecorruptions import corrupt
+from mmcv.image.transforms.resize import get_rescaled_size
 from numpy import random
 
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
@@ -109,17 +110,29 @@ class Resize(object):
         results['scale_idx'] = scale_idx
 
     def _resize_img(self, results):
+        no_img = 'img' not in results
         if self.keep_ratio:
-            img, scale_factor = mmcv.imrescale(
-                results['img'], results['scale'], return_scale=True)
+            if no_img:
+                shape, scale_factor = get_rescaled_size(
+                    results['img_shape'], results['scale'], return_scale=True)
+            else:
+                img, scale_factor = mmcv.imrescale(
+                    results['img'], results['scale'], return_scale=True)
         else:
-            img, w_scale, h_scale = mmcv.imresize(
-                results['img'], results['scale'], return_scale=True)
+            if no_img:
+                w, h = results['img_shape']
+                w_scale = results['scale'][0] / w
+                h_scale = results['scale'][1] / h
+            else:
+                img, w_scale, h_scale = mmcv.imresize(
+                    results['img'], results['scale'], return_scale=True)
             scale_factor = np.array([w_scale, h_scale, w_scale, h_scale],
                                     dtype=np.float32)
-        results['img'] = img
-        results['img_shape'] = img.shape
-        results['pad_shape'] = img.shape  # in case that there is no padding
+        if not no_img:
+            results['img'] = img
+            shape = img.shape
+        results['img_shape'] = shape
+        results['pad_shape'] = shape  # in case that there is no padding
         results['scale_factor'] = scale_factor
         results['keep_ratio'] = self.keep_ratio
 
@@ -241,13 +254,26 @@ class Pad(object):
         assert size is None or size_divisor is None
 
     def _pad_img(self, results):
-        if self.size is not None:
-            padded_img = mmcv.impad(results['img'], self.size)
-        elif self.size_divisor is not None:
-            padded_img = mmcv.impad_to_multiple(
-                results['img'], self.size_divisor, pad_val=self.pad_val)
-        results['img'] = padded_img
-        results['pad_shape'] = padded_img.shape
+        no_img = 'img' not in results
+        if no_img:
+            if self.size is not None:
+                shape = self.size
+            else:
+                assert self.size_divisor is not None
+                shape = results['img_shape']
+                pad_h = int(np.ceil(shape[0] / self.size_divisor)) * self.size_divisor
+                pad_w = int(np.ceil(shape[1] / self.size_divisor)) * self.size_divisor
+                shape = (pad_h, pad_w)
+        else:
+            if self.size is not None:
+                padded_img = mmcv.impad(results['img'], self.size)
+            else:
+                assert self.size_divisor is not None
+                padded_img = mmcv.impad_to_multiple(
+                    results['img'], self.size_divisor, pad_val=self.pad_val)
+            results['img'] = padded_img
+            shape = padded_img.shape
+        results['pad_shape'] = shape
         results['pad_fixed_size'] = self.size
         results['pad_size_divisor'] = self.size_divisor
 

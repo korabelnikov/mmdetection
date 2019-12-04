@@ -3,18 +3,15 @@ from argparse import ArgumentParser
 import mmcv
 import numpy as np
 
-#from mmdet import datasets
+from mmdet import datasets
 from mmdet.core import eval_map
 from mmdet.datasets import build_dataset, build_dataloader
+from mmdet.datasets.pipelines import LoadImageInfo
 from mmdet.models.detectors.base import imshow_det_bboxes_with_gt
 
 
-def voc_eval(result_file, dataset, iou_thr=0.5):
+def voc_eval(result_file, dataset, iou_thr=0.5, show=False):
     det_results = mmcv.load(result_file)
-
-
-    # debug hack todo
-    # det_results = [det[:1] for det in det_results]
 
     data_loader = build_dataloader(
         dataset,
@@ -22,7 +19,6 @@ def voc_eval(result_file, dataset, iou_thr=0.5):
         workers_per_gpu=1,
         dist=False,
         shuffle=False)
-
 
     gt_bboxes = []
     gt_labels = []
@@ -34,7 +30,7 @@ def voc_eval(result_file, dataset, iou_thr=0.5):
         bboxes = np.concatenate(bboxes)
         labels = np.concatenate(labels)
 
-        ann = dataset.get_ann_info(i)
+        ann = dataset.get_ann_info(i)  # TODO rem it
         if 'bboxes_ignore' in ann:
             ignore = np.concatenate([
                 np.zeros(bboxes.shape[0], dtype=np.bool),
@@ -44,7 +40,6 @@ def voc_eval(result_file, dataset, iou_thr=0.5):
             bboxes = np.vstack([bboxes, ann['bboxes_ignore']])
             labels = np.concatenate([labels, ann['labels_ignore']])
 
-        show = False
         if show:
             img = data['img'].data[0]
             img = img.cpu().numpy()[0].transpose(1, 2, 0)
@@ -74,6 +69,19 @@ def voc_eval(result_file, dataset, iou_thr=0.5):
         print_summary=True)
 
 
+def remove_images_from_pipeline(test_dataset):
+    test_dataset.annotations_only_mode()
+    # assert todo
+    test_dataset.pipeline.transforms[0] = LoadImageInfo()
+    # todo assert normolize
+    del test_dataset.pipeline.transforms[4]
+    collect = test_dataset.pipeline.transforms[-1]
+    assert collect.keys[0] == 'img'
+    del collect.keys[0]
+    meta_keys = collect.meta_keys[:-1]
+    collect.meta_keys = meta_keys
+
+
 def main():
     parser = ArgumentParser(description='VOC Evaluation')
     parser.add_argument('result', help='result file path')
@@ -83,11 +91,17 @@ def main():
         type=float,
         default=0.5,
         help='IoU threshold for evaluation')
+    parser.add_argument('--show',
+                        dest='show',
+                        action='store_true',
+                        default=False,
+                        help='Show all detections on images')
     args = parser.parse_args()
     cfg = mmcv.Config.fromfile(args.config)
-    #test_dataset = mmcv.runner.obj_from_dict(cfg.data.val, datasets)
-    test_dataset = build_dataset(cfg.data.test)
-    voc_eval(args.result, test_dataset, args.iou_thr)
+    test_dataset = mmcv.runner.obj_from_dict(cfg.data.val, datasets)
+    if not args.show:
+        remove_images_from_pipeline(test_dataset)
+    voc_eval(args.result, test_dataset, args.iou_thr, args.show)
 
 
 if __name__ == '__main__':

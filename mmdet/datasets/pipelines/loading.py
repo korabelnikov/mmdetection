@@ -1,6 +1,7 @@
 import os.path as osp
 import warnings
 
+import imagesize as imagesize
 import mmcv
 import numpy as np
 import pycocotools.mask as maskUtils
@@ -32,6 +33,18 @@ class LoadImageFromFile(object):
     def __repr__(self):
         return self.__class__.__name__ + '(to_float32={})'.format(
             self.to_float32)
+
+
+@PIPELINES.register_module
+class LoadImageInfo(object):
+    def __call__(self, results):
+        filename = osp.join(results['img_prefix'],
+                            results['img_info']['filename'])
+        w, h = imagesize.get(filename)
+        results['filename'] = filename
+        results['img_shape'] = (w, h)
+        results['ori_shape'] = (w, h)
+        return results
 
 
 @PIPELINES.register_module

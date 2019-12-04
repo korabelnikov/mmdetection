@@ -47,6 +47,7 @@ class CustomDataset(Dataset):
         self.seg_prefix = seg_prefix
         self.proposal_file = proposal_file
         self.test_mode = test_mode
+        self.annotations_only = False
 
         # join paths if data_root is specified
         if self.data_root is not None:
@@ -132,9 +133,11 @@ class CustomDataset(Dataset):
             return data
 
     def prepare_train_img(self, idx):
-        img_info = self.img_infos[idx]
         ann_info = self.get_ann_info(idx)
-        results = dict(img_info=img_info, ann_info=ann_info)
+        results = dict(ann_info=ann_info)
+        img_info = self.img_infos[idx]
+        results['img_info'] = img_info
+
         if self.proposals is not None:
             results['proposals'] = self.proposals[idx]
         self.pre_pipeline(results)
@@ -147,3 +150,6 @@ class CustomDataset(Dataset):
             results['proposals'] = self.proposals[idx]
         self.pre_pipeline(results)
         return self.pipeline(results)
+
+    def annotations_only_mode(self, enable=True):
+        self.annotations_only = enable
