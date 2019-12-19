@@ -155,6 +155,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
     # a certain scale
     tp = np.zeros((num_scales, num_dets), dtype=np.float32)
     fp = np.zeros((num_scales, num_dets), dtype=np.float32)
+    all_p = np.zeros((num_scales,), dtype=np.float32)
     # if there is no gt bboxes in this image, then all det bboxes
     # within area range are false positives
     if gt_bboxes.shape[0] == 0:
@@ -165,7 +166,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
                 det_bboxes[:, 3] - det_bboxes[:, 1])
             for i, (min_area, max_area) in enumerate(area_ranges):
                 fp[i, (det_areas >= min_area) & (det_areas < max_area)] = 1
-        return tp, fp
+        return tp, fp, 0
     ious = bbox_overlaps(det_bboxes, gt_bboxes)
     ious_max = ious.max(axis=1)
     ious_argmax = ious.argmax(axis=1)
@@ -179,6 +180,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
             gt_areas = (gt_bboxes[:, 2] - gt_bboxes[:, 0]) * (
                 gt_bboxes[:, 3] - gt_bboxes[:, 1])
             gt_area_ignore = (gt_areas < min_area) | (gt_areas >= max_area)
+            all_p[k] += sum(~gt_area_ignore)
         for i in sort_inds:
             if ious_max[i] >= iou_thr:
                 matched_gt = ious_argmax[i]
@@ -196,7 +198,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
                 area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
                 if area >= min_area and area < max_area:
                     fp[k, i] = 1
-    return tp, fp
+    return tp, fp, all_p
 
 
 def get_cls_results(det_results, gt_bboxes, gt_labels, gt_ignore, class_id):
@@ -220,27 +222,29 @@ def get_cls_results(det_results, gt_bboxes, gt_labels, gt_ignore, class_id):
 """
 TODO move this function it's own file
 """
-def calc_recalls(recalls, precisions, precision_thr):
+def calc_recalls(recalls, precisions, precision_thr, scale_ranges):
     from scipy.interpolate import interp1d
     import matplotlib.pyplot as plt
 
 
     ret = []  # recalls
+    plt.title("VOC PR curves w.r.t size groups")
+    plt.xlabel('precision')
+    plt.ylabel('recall')
     # loop over size groups
     for i, (recalls_i, precisions_i) in enumerate(zip(recalls, precisions)):
         #recalls_i = np.append(recalls_i, 1)
         #precisions_i = np.append(precisions_i, 0)
 
-        plt.plot(recalls_i, precisions_i)
-        plt.title("Size group #{}".format(i))
-        plt.xlabel('precision')
-        plt.ylabel('recall')
-        plt.show()
+        plt.plot(recalls_i, precisions_i,
+                 label="Size group {}".format(scale_ranges[i]))
 
         f = interp1d(precisions_i, recalls_i, fill_value='extrapolate')
         ret.append([])
         for thr in precision_thr:
             ret[-1].append(f(thr))
+    plt.legend()
+    plt.show()
 
     # transpose
     ret = list(map(list, zip(*ret)))
@@ -297,7 +301,7 @@ def eval_map(det_results,
             tpfp_func(cls_dets[j], cls_gts[j], cls_gt_ignore[j], iou_thr,
                       area_ranges) for j in range(len(cls_dets))
         ]
-        tp, fp = tuple(zip(*tpfp))
+        tp, fp, _ = tuple(zip(*tpfp))
         # calculate gt number of each scale, gts ignored or beyond scale
         # are not counted
         num_gts = np.zeros(num_scales, dtype=int)
@@ -332,7 +336,8 @@ def eval_map(det_results,
         ap = average_precision(recalls, precisions, mode)
 
         precision_thr = [0.5, 0.7, 0.9]
-        recalls_at_prec = list(calc_recalls(recalls, precisions, precision_thr))
+        recalls_at_prec = list(calc_recalls(recalls, precisions,
+                                            precision_thr, scale_ranges))
 
         labels = ["Recall@{}Pr".format(i) for i in precision_thr]
         recalls_at_prec = dict(zip(labels, recalls_at_prec))
