@@ -34,14 +34,25 @@ class RTSD(XMLDataset):
         self._ann_prefix = ann_prefix
         if only_one_label:
             self.CLASSES = ['object']
-            self._category_converter = lambda x: 'object'
+
+            # it's necessary hack for windows cause it was falling when serialize lambdas
+            self._category_converter = self.convert_to_1_class
+
         else:
             self.CLASSES = ValidLabels
-            self._category_converter = lambda x: x
+
+            # it's necessary hack for windows cause it was falling when serialize lambdas
+            self._category_converter = self.leave_as_is
 
         super(RTSD, self).__init__(**kwargs)
 
         self.cat2label = {cat: i + 1 for i, cat in enumerate(self.CLASSES)}
+
+    def convert_to_1_class(self, x):
+        return 'object'
+
+    def leave_as_is(self, x):
+        return x
 
     def load_annotations(self, ann_file):
         img_infos = []
