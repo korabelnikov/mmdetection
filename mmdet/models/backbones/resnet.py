@@ -530,6 +530,8 @@ class ResNet(nn.Module):
             x = res_layer(x)
             if i in self.out_indices:
                 outs.append(x)
+            if i == max(self.out_indices):
+                continue
         return tuple(outs)
 
     def train(self, mode=True):
