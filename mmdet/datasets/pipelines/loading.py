@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 import warnings
 
@@ -22,6 +23,11 @@ class LoadImageFromFile(object):
         else:
             filename = results['img_info']['filename']
         img = mmcv.imread(filename)
+        if img is None:
+            if os.path.isfile(filename):
+                raise IOError(filename + ' is broken')
+            else:
+                raise FileNotFoundError(filename)
         if self.to_float32:
             img = img.astype(np.float32)
         results['filename'] = filename
