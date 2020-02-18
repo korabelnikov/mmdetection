@@ -396,7 +396,8 @@ class ResNet(nn.Module):
                  gen_attention=None,
                  stage_with_gen_attention=((), (), (), ()),
                  with_cp=False,
-                 zero_init_residual=True):
+                 zero_init_residual=True,
+                 planes_list=None):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
             raise KeyError('invalid depth {} for resnet'.format(depth))
@@ -426,9 +427,12 @@ class ResNet(nn.Module):
         self.zero_init_residual = zero_init_residual
         self.block, stage_blocks = self.arch_settings[depth]
         self.stage_blocks = stage_blocks[:num_stages]
-        self.inplanes = 64
 
-        self._make_stem_layer(in_channels)
+        if planes_list is None:
+            self.inplanes = 64
+            planes_list = [self.inplanes]
+            planes_list += [64 * 2**i for i in range(num_stages)]
+        self._make_stem_layer(in_channels, planes_list[0])
 
         self.res_layers = []
         for i, num_blocks in enumerate(self.stage_blocks):
@@ -436,11 +440,10 @@ class ResNet(nn.Module):
             dilation = dilations[i]
             dcn = self.dcn if self.stage_with_dcn[i] else None
             gcb = self.gcb if self.stage_with_gcb[i] else None
-            planes = 64 * 2**i
             res_layer = make_res_layer(
                 self.block,
-                self.inplanes,
-                planes,
+                planes_list[i] *(self.block.expansion if i != 0 else 1),
+                planes_list[i+1],
                 num_blocks,
                 stride=stride,
                 dilation=dilation,
@@ -452,7 +455,6 @@ class ResNet(nn.Module):
                 gcb=gcb,
                 gen_attention=gen_attention,
                 gen_attention_blocks=stage_with_gen_attention[i])
-            self.inplanes = planes * self.block.expansion
             layer_name = 'layer{}'.format(i + 1)
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)
@@ -466,16 +468,16 @@ class ResNet(nn.Module):
     def norm1(self):
         return getattr(self, self.norm1_name)
 
-    def _make_stem_layer(self, in_channels):
+    def _make_stem_layer(self, in_channels, planes):
         self.conv1 = build_conv_layer(
             self.conv_cfg,
             in_channels,
-            64,
+            planes,
             kernel_size=7,
             stride=2,
             padding=3,
             bias=False)
-        self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, 64, postfix=1)
+        self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, planes, postfix=1)
         self.add_module(self.norm1_name, norm1)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
